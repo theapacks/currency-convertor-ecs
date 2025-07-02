@@ -5,6 +5,11 @@ from datetime import datetime, timezone, timedelta
 app = FastAPI()
 
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+
 @app.get("/convert")
 def convert_currency(
     from_currency: str = Query(..., alias="from"),
