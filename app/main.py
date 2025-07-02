@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 app = FastAPI()
 
@@ -29,5 +29,5 @@ def convert_currency(
     return {
         "converted": rate,
         "rate": rate / amount if amount != 0 else None,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone(timedelta(hours=2))).isoformat(),
     }
