@@ -1,0 +1,3 @@
+# [HIGH] Bucket does not encrypt data with a customer managed key.
+
+AVD-AWS-0132

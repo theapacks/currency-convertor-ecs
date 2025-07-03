@@ -1,0 +1,10 @@
+exit-code: 1
+
+ignorefile: ".trivyignore"
+
+scan:
+  skip-dirs:
+    - .terraform
+
+terraform:
+  exclude-downloaded-modules: false
