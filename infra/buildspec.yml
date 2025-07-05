@@ -1,0 +1,43 @@
+version: 0.2
+
+phases:
+  install:
+    on-failure: ABORT
+    commands:
+      - echo Installing prerequisites
+      - apt-get update -y
+      - apt-get install -y jq
+  pre_build:
+    on-failure: ABORT
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/${ECR_REPOSITORY_NAME}
+      - "echo Repository URI: $REPOSITORY_URI"
+      - "echo ECR Repository Name: ${ECR_REPOSITORY_NAME}"
+      - "echo Unique Image Tag: $IMAGE_TAG"
+      - echo Installing Trivy...
+      - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - echo Generating unique image tag...
+      - "IMAGE_TAG=$(date +%Y%m%d%H%M%S)-${CODEBUILD_BUILD_NUMBER:-$(echo $CODEBUILD_BUILD_ID | cut -d: -f2)}"
+      - "echo Unique Image Tag: $IMAGE_TAG"
+  build:
+    on-failure: ABORT
+    commands:
+      - echo Build started on `date`
+      - echo Downloading application code from S3 ${DOCKERFILE_BUCKET}...
+      - aws s3 cp s3://$DOCKERFILE_BUCKET/app.zip ./app.zip
+      - echo Extracting application code...
+      - unzip -q app.zip
+      - echo "Contents after extraction:"
+      - ls -la
+      - echo Building the Docker image...
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG -f Dockerfile .
+      - docker tag $REPOSITORY_URI:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY_NAME:$IMAGE_TAG
+      - echo Running Trivy security scan...
+      - trivy image --severity CRITICAL,HIGH $REPOSITORY_URI:$IMAGE_TAG # use exit code to fail the check --exit-code 1
+  post_build:
+    commands:
+      - echo Pushing the Docker image...
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY_NAME:$IMAGE_TAG
+      - echo Build completed on `date`
