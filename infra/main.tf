@@ -10,18 +10,19 @@ module "codebuild_docker" {
   ecr_repository_url     = module.ecr.repository_url
   ecr_repository_name    = module.ecr.repository_name
   dockerfile_bucket_name = "${var.project_name}-dockerfile-${var.environment_name}"
-  dockerfile_key         = "Dockerfile"
+  dockerfile_key         = "app.zip"
   aws_region             = var.aws_region
   codebuild_compute_type = "BUILD_GENERAL1_SMALL"
-  codebuild_image        = "aws/codebuild/standard:7.0"
+  codebuild_image        = "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
   tags                   = var.tags
 
   s3_objetcs = {
-    "buildspec.yml" = "./buildspec.yml"
+    "buildspec.yml" = "./modules/codebuild.docker/buildspec.yml"
     "app.zip"       = data.archive_file.app.output_path
   }
 
-  trigger_file = "Dockerfile"
+  trigger_file = "app.zip"
 
   depends_on = [module.ecr]
 }
+
