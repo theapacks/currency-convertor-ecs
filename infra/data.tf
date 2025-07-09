@@ -8,3 +8,6 @@ data "archive_file" "app" {
     "__pycache__"
   ]
 }
+
+
+data "aws_availability_zones" "available" {}
