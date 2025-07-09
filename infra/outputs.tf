@@ -34,3 +34,19 @@ output "intra_subnets" {
   value       = module.vpc.intra_subnets
   
 }
+
+# VPC Endpoints Outputs
+output "vpc_endpoints_count" {
+  description = "Number of VPC endpoints created"
+  value       = module.vpc_endpoints.endpoint_count
+}
+
+output "vpc_endpoints_security_group_id" {
+  description = "Security group ID for VPC endpoints"
+  value       = module.vpc_endpoints.security_group_id
+}
+
+output "vpc_endpoints_created" {
+  description = "List of VPC endpoints created"
+  value       = module.vpc_endpoints.vpc_endpoints
+}

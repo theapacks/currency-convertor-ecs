@@ -54,3 +54,63 @@ module "vpc" {
 
   tags = local.tags
 }
+
+module "vpc_endpoints" {
+  source = "./modules/vpc-endpoints"
+
+  vpc_id     = module.vpc.vpc_id
+  region     = var.aws_region
+  subnet_ids = module.vpc.private_subnets
+  route_table_ids = concat(
+    module.vpc.private_route_table_ids,
+    module.vpc.public_route_table_ids
+  )
+
+  endpoints = {
+    s3 = {
+      service = "s3"
+      type    = "Gateway"
+    }
+
+    ecr-api = {
+      service = "ecr.api"
+      type    = "Interface"
+    }
+    ecr-dkr = {
+      service = "ecr.dkr"
+      type    = "Interface"
+    }
+    ecs = {
+      service = "ecs"
+      type    = "Interface"
+    }
+    ecs-telemetry = {
+      service = "ecs-telemetry"
+      type    = "Interface"
+    }
+    logs = {
+      service = "logs"
+      type    = "Interface"
+    }
+    monitoring = {
+      service = "monitoring"
+      type    = "Interface"
+    }
+    ssm = {
+      service = "ssm"
+      type    = "Interface"
+    }
+    kms = {
+      service = "kms"
+      type    = "Interface"
+    }
+    secretsmanager = {
+      service = "secretsmanager"
+      type    = "Interface"
+    }
+  }
+
+  tags = local.tags
+
+  depends_on = [module.vpc]
+}
