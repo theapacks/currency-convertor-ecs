@@ -17,7 +17,7 @@ module "codebuild_docker" {
   tags                   = var.tags
 
   s3_objetcs = {
-    "buildspec.yml" = "./modules/codebuild.docker/buildspec.yml"
+    "buildspec.yml" = "./buildspec.yml"
     "app.zip"       = data.archive_file.app.output_path
   }
 
