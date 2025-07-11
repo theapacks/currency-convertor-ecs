@@ -4,3 +4,8 @@ output "uploaded_files" {
     for key, obj in aws_s3_object.files : key => "s3://${aws_s3_bucket.this.id}/${obj.key}"
   }
 }
+
+output "build_project_name" {
+  description = "Name of the CodeBuild project"
+  value = aws_codebuild_project.this.name
+}
