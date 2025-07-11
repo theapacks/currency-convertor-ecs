@@ -49,6 +49,15 @@ resource "aws_iam_role_policy" "codebuild_policy" {
         Effect   = "Allow",
         Action   = ["logs:*"],
         Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "ecs:UpdateService",
+          "ecs:DescribeServices",
+          "ecs:DescribeClusters"
+        ],
+        Resource = "*"
       }
     ]
   })
