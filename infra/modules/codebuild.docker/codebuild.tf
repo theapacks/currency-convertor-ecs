@@ -30,11 +30,6 @@ resource "aws_codebuild_project" "this" {
       type  = "PLAINTEXT"
     }
     environment_variable {
-      name  = "IMAGE_TAG"
-      value = "latest"
-      type  = "PLAINTEXT"
-    }
-    environment_variable {
       name  = "DOCKERFILE_BUCKET"
       value = var.dockerfile_bucket_name
       type  = "PLAINTEXT"
