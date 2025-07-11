@@ -1,13 +1,31 @@
 from fastapi import FastAPI, Query
 import requests
+import socket
 from datetime import datetime, timezone, timedelta
+
+FRANKFURTER_API_URL = "https://api.frankfurter.app"
 
 app = FastAPI()
 
 
+def get_host_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "host_ip": get_host_ip(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @app.get("/convert")
@@ -16,7 +34,7 @@ def convert_currency(
     to_currency: str = Query(..., alias="to"),
     amount: float = Query(...),
 ):
-    url = f"https://api.frankfurter.app/latest?amount={amount}&from={from_currency}&to={to_currency}"
+    url = f"{FRANKFURTER_API_URL}/latest?amount={amount}&from={from_currency}&to={to_currency}"
     response = requests.get(url)
 
     if response.status_code != 200:
