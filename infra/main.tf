@@ -166,15 +166,7 @@ module "ecs_fargate" {
   depends_on = [
     module.vpc,
     module.vpc_endpoints,
-    module.ecr,
-    terraform_data.force_ecs_update
-  ]
-}
-
-# Force ECS service to update when image changes
-resource "terraform_data" "force_ecs_update" {
-  triggers_replace = [
-    try(data.aws_ecr_image.image.image_digest, "initial")
+    module.ecr
   ]
 }
 
