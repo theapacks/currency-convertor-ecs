@@ -44,6 +44,16 @@ resource "aws_codebuild_project" "this" {
       value = var.dockerfile_key
       type  = "PLAINTEXT"
     }
+    environment_variable {
+      name  = "ECS_CLUSTER_NAME"
+      value = var.ecs_cluster_name
+      type  = "PLAINTEXT"
+    }
+    environment_variable {
+      name  = "ECS_SERVICE_NAME"
+      value = var.ecs_service_name
+      type  = "PLAINTEXT"
+    }
 
   }
 

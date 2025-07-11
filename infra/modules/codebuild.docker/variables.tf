@@ -55,3 +55,15 @@ variable "trigger_file" {
   type        = string
   default     = "Dockerfile"
 }
+
+variable "ecs_cluster_name" {
+  description = "Name of the ECS cluster to update after image build"
+  type        = string
+  default     = ""
+}
+
+variable "ecs_service_name" {
+  description = "Name of the ECS service to update after image build"
+  type        = string
+  default     = ""
+}
