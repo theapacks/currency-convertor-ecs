@@ -53,11 +53,23 @@ resource "aws_iam_role_policy" "codebuild_policy" {
       {
         Effect = "Allow",
         Action = [
-          "ecs:UpdateService",
+          "ecs:DescribeClusters",
           "ecs:DescribeServices",
-          "ecs:DescribeClusters"
+          "ecs:DescribeTaskDefinition",
+          "ecs:RegisterTaskDefinition",
+          "ecs:UpdateService"
         ],
         Resource = "*"
+      },
+      {
+        Effect = "Allow",
+        Action = [
+          "iam:PassRole"
+        ],
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*-task-execution-role",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*-task-role"
+        ]
       }
     ]
   })
