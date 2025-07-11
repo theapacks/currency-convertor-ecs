@@ -71,20 +71,14 @@ output "vpc_endpoints_created" {
   depends_on = [ module.vpc_endpoints ]
 }
 
-output "ecr_image_info" {
-  value = length(data.aws_ecr_image.image) > 0 ? {
-    image_uri    = data.aws_ecr_image.image.image_uri
-    image_tags   = data.aws_ecr_image.image.image_tags
-    pushed_at    = data.aws_ecr_image.image.image_pushed_at
-    size_bytes   = data.aws_ecr_image.image.image_size_in_bytes
-  } : {
-    image_uri    = "No ECR image available yet"
-    image_tags   = []
-    pushed_at    = 0
-    size_bytes   = 0
+output "ecr_repository_info" {
+  description = "ECR repository information"
+  value = {
+    repository_name = module.ecr.repository_name
+    repository_url  = module.ecr.repository_url
+    registry_id     = data.aws_ecr_repository.repo.registry_id
   }
-
-  depends_on = [data.aws_ecr_image.image]
+  depends_on = [module.ecr, data.aws_ecr_repository.repo]
 }
 
 # ECS Fargate Outputs
