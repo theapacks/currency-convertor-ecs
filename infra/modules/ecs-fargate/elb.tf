@@ -11,7 +11,7 @@ resource "aws_security_group" "alb" {
   name        = "${aws_ecs_cluster.this.name}-alb"
   description = "Security group for Application Load Balancer"
   vpc_id      = var.vpc_id
-  tags        = merge(var.tags, {
+  tags = merge(var.tags, {
     Name = "${aws_ecs_cluster.this.name}-alb"
   })
 
@@ -36,10 +36,10 @@ resource "aws_lb" "this" {
   count              = var.enable_load_balancer ? 1 : 0
   name               = "${var.project_name}-alb"
   load_balancer_type = "application"
-  internal           = false  # Internet-facing for CloudFront access
+  internal           = false # Internet-facing for CloudFront access
   security_groups    = [aws_security_group.alb[0].id]
   subnets            = length(var.alb_subnet_ids) > 0 ? var.alb_subnet_ids : var.subnet_ids
-  tags               = merge(var.tags, {
+  tags = merge(var.tags, {
     Name = "${var.project_name}-alb"
   })
 
@@ -53,7 +53,7 @@ resource "aws_lb_target_group" "this" {
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "ip"
-  tags        = merge(var.tags, {
+  tags = merge(var.tags, {
     Name = "${var.project_name}-tg"
   })
 
@@ -108,7 +108,7 @@ resource "aws_lb_listener_rule" "cloudfront_access" {
 
 resource "aws_cloudfront_distribution" "this" {
   count = var.enable_load_balancer ? 1 : 0
-  
+
   origin {
     domain_name = aws_lb.this[0].dns_name
     origin_id   = "ALB-${var.project_name}"
