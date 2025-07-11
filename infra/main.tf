@@ -118,3 +118,76 @@ module "vpc_endpoints" {
 
   depends_on = [module.vpc]
 }
+
+module "ecs_fargate" {
+  source = "./modules/ecs-fargate"
+
+  project_name           = var.project_name
+  environment_name       = var.environment_name
+  region                 = var.aws_region
+  service_name           = var.ecs_service_name
+  task_definition_family = "${var.project_name}-${var.environment_name}-task"
+
+  # Use the ECR repository URL with a dynamic tag
+  container_image = local.container_image
+  container_port  = var.container_port
+
+  cpu           = var.ecs_task_cpu
+  memory        = var.ecs_task_memory
+  desired_count = var.ecs_desired_count
+
+  # VPC Configuration
+  vpc_id         = module.vpc.vpc_id
+  subnet_ids     = module.vpc.private_subnets
+  alb_subnet_ids = module.vpc.public_subnets
+
+  # Since we're using private subnets, disable public IP
+  enable_public_ip = false
+
+  # Load balancer configuration
+  enable_load_balancer = true
+
+  # Logging configuration
+  enable_logs           = true
+  log_retention_in_days = 7
+
+  # Health check configuration
+  health_check_path = "/health"
+
+  # Environment variables for the container
+  environment_variables = {
+    AWS_DEFAULT_REGION = var.aws_region
+    ENVIRONMENT        = var.environment_name
+    PROJECT_NAME       = var.project_name
+  }
+
+  tags = local.tags
+
+  depends_on = [
+    module.vpc,
+    module.vpc_endpoints,
+    module.ecr
+  ]
+}
+
+resource "null_resource" "trigger_initial_build" {
+  triggers = {
+    cluster_arn = module.ecs_fargate.cluster_arn
+    service_arn = module.ecs_fargate.service_arn
+    app_hash    = data.archive_file.app.output_md5
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Triggering initial CodeBuild after ECS cluster is ready..."
+      aws codebuild start-build \
+        --project-name ${module.codebuild_docker.build_project_name} \
+        --region ${var.aws_region}
+    EOT
+  }
+
+  depends_on = [
+    module.ecs_fargate,
+    module.codebuild_docker
+  ]
+}
