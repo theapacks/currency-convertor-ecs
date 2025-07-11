@@ -22,19 +22,19 @@ variable "route_table_ids" {
 variable "endpoints" {
   description = "Map of VPC endpoints to create"
   type = map(object({
-    service              = string
-    type                 = string # "Gateway" or "Interface"
-    private_dns_enabled  = optional(bool, true)
-    policy               = optional(string, null)
+    service             = string
+    type                = string # "Gateway" or "Interface"
+    private_dns_enabled = optional(bool, true)
+    policy              = optional(string, null)
   }))
 
   validation {
     condition = alltrue([
-      for endpoint_name, endpoint_config in var.endpoints : 
+      for endpoint_name, endpoint_config in var.endpoints :
       contains(["Gateway", "Interface"], endpoint_config.type)
     ])
     error_message = "The 'type' field must be either 'Gateway' or 'Interface'."
-  }  
+  }
 }
 
 variable "tags" {
@@ -55,7 +55,7 @@ variable "security_group_ingress_rules" {
   default = []
 }
 
-variable sg_egress_cidr_blocks {
+variable "sg_egress_cidr_blocks" {
   description = "CIDR blocks for egress rules in VPC endpoint security group"
   type        = list(string)
   default     = ["0.0.0.0/0"]
