@@ -166,7 +166,15 @@ module "ecs_fargate" {
   depends_on = [
     module.vpc,
     module.vpc_endpoints,
-    module.ecr
+    module.ecr,
+    terraform_data.force_ecs_update
+  ]
+}
+
+# Force ECS service to update when image changes
+resource "terraform_data" "force_ecs_update" {
+  triggers_replace = [
+    try(data.aws_ecr_image.image.image_digest, "initial")
   ]
 }
 
@@ -182,7 +190,8 @@ resource "null_resource" "trigger_initial_build" {
       echo "Triggering initial CodeBuild after ECS cluster is ready..."
       aws codebuild start-build \
         --project-name ${module.codebuild_docker.build_project_name} \
-        --region ${var.aws_region}
+        --region ${var.aws_region} \
+        --profile ${var.aws_profile}
     EOT
   }
 
