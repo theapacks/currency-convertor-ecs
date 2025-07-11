@@ -16,6 +16,10 @@ module "codebuild_docker" {
   codebuild_image        = "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
   tags                   = var.tags
 
+  # ECS deployment configuration
+  ecs_cluster_name = module.ecs_fargate.cluster_name
+  ecs_service_name = module.ecs_fargate.service_name
+
   s3_objetcs = {
     "buildspec.yml" = "./buildspec.yml"
     "app.zip"       = data.archive_file.app.output_path
