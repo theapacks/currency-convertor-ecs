@@ -5,8 +5,8 @@ phases:
     on-failure: ABORT
     commands:
       - echo Installing prerequisites
-      - apt-get update -y
-      - apt-get install -y jq
+      - yum update -y
+      - yum install -y jq unzip
   pre_build:
     on-failure: ABORT
     commands:
