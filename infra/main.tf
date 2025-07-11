@@ -53,8 +53,8 @@ module "vpc" {
   create_flow_log_cloudwatch_iam_role   = true
   flow_log_max_aggregation_interval     = 60
 
-  enable_nat_gateway = false
-  single_nat_gateway = false
+  enable_nat_gateway = true
+  single_nat_gateway = true
 
   tags = local.tags
 }
