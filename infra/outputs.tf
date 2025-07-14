@@ -96,23 +96,3 @@ output "application_url" {
 
   depends_on = [module.ecs_fargate]
 }
-
-# CloudFront Outputs
-output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID"
-  value       = module.ecs_fargate.cloudfront_distribution_id
-  depends_on  = [module.ecs_fargate]
-}
-
-output "cloudfront_domain_name" {
-  description = "CloudFront domain name"
-  value       = module.ecs_fargate.cloudfront_domain_name
-  depends_on  = [module.ecs_fargate]
-}
-
-output "cloudfront_secret" {
-  description = "CloudFront custom header secret (sensitive)"
-  value       = module.ecs_fargate.cloudfront_secret
-  sensitive   = true
-  depends_on  = [module.ecs_fargate]
-}

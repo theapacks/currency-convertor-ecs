@@ -1,101 +1,112 @@
 version: 0.2
 
+batch:
+  fast-fail: true
+
 phases:
   install:
     on-failure: ABORT
     commands:
-      - echo "=== INSTALL PHASE ==="
-      - echo "Installing prerequisites..."
+      - echo Installing prerequisites
       - yum update -y
       - yum install -y jq unzip
-      - echo "Validating required environment variables..."
-      - |
-        for var in AWS_ACCOUNT_ID AWS_DEFAULT_REGION ECR_REPOSITORY_NAME DOCKERFILE_BUCKET; do
-          if [ -z "${!var}" ]; then
-            echo "ERROR: Required environment variable $var is not set"
-            exit 1
-          fi
-          echo "$var = ${!var}"
-        done
-      - echo "=== INSTALL COMPLETE ==="
-
   pre_build:
+    on-failure: ABORT
     commands:
-      - echo "=== PRE-BUILD PHASE ==="
-      - echo "Logging in to Amazon ECR..."
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - set -e
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com || { echo "ECR login failed"; exit 1; }
       - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/${ECR_REPOSITORY_NAME}
-      - echo "Repository URI is $REPOSITORY_URI"
-      - echo "Installing Trivy security scanner..."
-      - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-      - IMAGE_TAG=$(date +%Y%m%d%H%M%S)-${CODEBUILD_BUILD_NUMBER:-latest}
-      - echo "Image tag is $IMAGE_TAG"
-      - echo "=== PRE-BUILD COMPLETE ==="
-
+      - "echo Repository URI: $REPOSITORY_URI"
+      - "echo ECR Repository Name: ${ECR_REPOSITORY_NAME}"
+      - echo Installing Trivy...
+      - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin || { echo "Failed to install Trivy"; exit 1; }
+      - echo Generating unique image tag...
+      - "IMAGE_TAG=$(date +%Y%m%d%H%M%S)-${CODEBUILD_BUILD_NUMBER:-$(echo $CODEBUILD_BUILD_ID | cut -d: -f2)}"
+      - "echo Unique Image Tag: $IMAGE_TAG"
   build:
+    on-failure: ABORT
     commands:
-      - echo "=== BUILD PHASE ==="
-      - echo "Build started on $(date)"
-      - echo "Downloading application code from S3..."
-      - aws s3 cp s3://$DOCKERFILE_BUCKET/app.zip ./app.zip
-      - echo "Extracting application code..."
-      - unzip -q app.zip
-      - echo "Building the Docker image..."
-      - docker build -t $REPOSITORY_URI:$IMAGE_TAG .
-      - echo "Running security scan..."
-      - trivy image --severity CRITICAL,HIGH $REPOSITORY_URI:$IMAGE_TAG
-      - echo "=== BUILD COMPLETE ==="
-
+      - set -e
+      - echo Build started on `date`
+      - echo Downloading application code from S3 ${DOCKERFILE_BUCKET}...
+      - aws s3 cp s3://$DOCKERFILE_BUCKET/app.zip ./app.zip || { echo "Failed to download app.zip from S3"; exit 1; }
+      - echo Extracting application code...
+      - unzip -q app.zip || { echo "Failed to extract app.zip"; exit 1; }
+      - echo "Contents after extraction:"
+      - ls -la
+      - echo Building the Docker image...
+      - docker build -t $REPOSITORY_URI:$IMAGE_TAG . || { echo "Docker build failed"; exit 1; }
+      - echo Running Trivy security scan...
+      - trivy image --severity CRITICAL,HIGH $REPOSITORY_URI:$IMAGE_TAG || { echo "Security scan failed"; exit 1; }
   post_build:
+    on-failure: ABORT
     commands:
-      - echo "=== POST-BUILD PHASE ==="
-      - echo "Build completed on $(date)"
-      - echo "Pushing the Docker image..."
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - echo "Image pushed successfully with tag $IMAGE_TAG"
-      - echo "Updating ECS service..."
+      - set -e
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG || { echo "Failed to push Docker image"; exit 1; }
+      - echo Image pushed successfully with tag $IMAGE_TAG
       - |
+        echo "Checking if ECS cluster and service exist..."
         if [ -n "$ECS_CLUSTER_NAME" ] && [ -n "$ECS_SERVICE_NAME" ]; then
-          echo "Updating ECS service $ECS_SERVICE_NAME in cluster $ECS_CLUSTER_NAME"
-          
-          # Get current task definition
-          echo "Getting current task definition..."
-          CURRENT_TASK_DEF=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --region $AWS_DEFAULT_REGION --query 'services[0].taskDefinition' --output text)
-          
-          if [ "$CURRENT_TASK_DEF" = "None" ] || [ -z "$CURRENT_TASK_DEF" ]; then
-            echo "Failed to get current task definition"
-            exit 1
+          echo "ECS cluster name: $ECS_CLUSTER_NAME"
+          echo "ECS service name: $ECS_SERVICE_NAME"
+          # Check if cluster exists
+          if aws ecs describe-clusters --clusters $ECS_CLUSTER_NAME --region $AWS_DEFAULT_REGION --query 'clusters[0].status' --output text 2>/dev/null | grep -q "ACTIVE"; then
+            echo "ECS cluster $ECS_CLUSTER_NAME is active"
+            # Check if service exists in the cluster
+            if aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --region $AWS_DEFAULT_REGION --query 'services[0].status' --output text 2>/dev/null | grep -q "ACTIVE"; then
+              echo "ECS service $ECS_SERVICE_NAME is active in cluster $ECS_CLUSTER_NAME"
+              # Get current task definition
+              echo "Getting current task definition..."
+              CURRENT_TASK_DEF=$(aws ecs describe-services --cluster $ECS_CLUSTER_NAME --services $ECS_SERVICE_NAME --region $AWS_DEFAULT_REGION --query 'services[0].taskDefinition' --output text)
+              if [ -z "$CURRENT_TASK_DEF" ] || [ "$CURRENT_TASK_DEF" = "None" ]; then
+                echo "Failed to get current task definition"
+                exit 1
+              fi
+              echo "Current task definition: $CURRENT_TASK_DEF"
+              # Get task definition family name
+              TASK_DEF_FAMILY=$(aws ecs describe-task-definition --task-definition $CURRENT_TASK_DEF --region $AWS_DEFAULT_REGION --query 'taskDefinition.family' --output text)
+              if [ -z "$TASK_DEF_FAMILY" ] || [ "$TASK_DEF_FAMILY" = "None" ]; then
+                echo "Failed to get task definition family"
+                exit 1
+              fi
+              echo "Task definition family: $TASK_DEF_FAMILY"
+              # Download current task definition
+              echo "Downloading current task definition..."
+              aws ecs describe-task-definition --task-definition $CURRENT_TASK_DEF --region $AWS_DEFAULT_REGION --query 'taskDefinition' > task-def.json || { echo "Failed to download task definition"; exit 1; }
+              # Update image URI in task definition
+              echo "Updating image URI to: $REPOSITORY_URI:$IMAGE_TAG"
+              NEW_TASK_DEF=$(cat task-def.json | jq --arg IMAGE "$REPOSITORY_URI:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)')
+              if [ -z "$NEW_TASK_DEF" ]; then
+                echo "Failed to create new task definition JSON"
+                exit 1
+              fi
+              # Register new task definition
+              echo "Registering new task definition..."
+              NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEF | aws ecs register-task-definition --cli-input-json file:///dev/stdin --region $AWS_DEFAULT_REGION --query 'taskDefinition.taskDefinitionArn' --output text)
+              if [ -z "$NEW_TASK_DEF_ARN" ] || [ "$NEW_TASK_DEF_ARN" = "None" ]; then
+                echo "Failed to register new task definition"
+                exit 1
+              fi
+              echo "New task definition ARN: $NEW_TASK_DEF_ARN"
+              # Update service with new task definition
+              echo "Updating ECS service with new task definition..."
+              aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN --region $AWS_DEFAULT_REGION || { echo "Failed to update ECS service"; exit 1; }
+              echo "ECS service update initiated successfully with new image"
+            else
+              echo "ECS service $ECS_SERVICE_NAME not found or not active in cluster $ECS_CLUSTER_NAME. Skipping service update."
+            fi
+          else
+            echo "ECS cluster $ECS_CLUSTER_NAME not found or not active. Skipping service update."
           fi
-          
-          echo "Current task definition: $CURRENT_TASK_DEF"
-          
-          # Download current task definition
-          echo "Downloading current task definition..."
-          aws ecs describe-task-definition --task-definition $CURRENT_TASK_DEF --region $AWS_DEFAULT_REGION --query 'taskDefinition' > task-def.json
-          
-          # Update image URI in task definition
-          echo "Updating image URI to: $REPOSITORY_URI:$IMAGE_TAG"
-          jq --arg IMAGE "$REPOSITORY_URI:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' task-def.json > new-task-def.json
-          
-          # Register new task definition
-          echo "Registering new task definition..."
-          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://new-task-def.json --region $AWS_DEFAULT_REGION --query 'taskDefinition.taskDefinitionArn' --output text)
-          
-          if [ "$NEW_TASK_DEF_ARN" = "None" ] || [ -z "$NEW_TASK_DEF_ARN" ]; then
-            echo "Failed to register new task definition"
-            exit 1
-          fi
-          
-          echo "New task definition ARN: $NEW_TASK_DEF_ARN"
-          
-          # Update service with new task definition
-          echo "Updating ECS service with new task definition..."
-          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --task-definition $NEW_TASK_DEF_ARN --region $AWS_DEFAULT_REGION
-          echo "ECS service update initiated with new image"
-          
-          # Cleanup
-          rm -f task-def.json new-task-def.json
         else
-          echo "ECS environment variables not set, skipping service update"
+          echo "ECS_CLUSTER_NAME or ECS_SERVICE_NAME environment variables not set. Skipping ECS service update."
         fi
-      - echo "=== POST-BUILD COMPLETE ==="
+      - echo "Build and deployment process completed successfully"
+  finally:
+    commands:
+      - echo "Cleanup phase - removing temporary files"
+      - rm -f task-def.json new-task-def.json app.zip
+      - echo "Build process finished at $(date)"
