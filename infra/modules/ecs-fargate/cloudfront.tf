@@ -63,7 +63,8 @@ resource "aws_cloudfront_distribution" "this" {
 
   restrictions {
     geo_restriction {
-      restriction_type = "none"
+      restriction_type = var.cloudfront_geo_restriction.restriction_type
+      locations        = var.cloudfront_geo_restriction.restriction_type == "none" ? [] : var.cloudfront_geo_restriction.locations
     }
   }
 

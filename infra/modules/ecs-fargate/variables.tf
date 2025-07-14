@@ -46,6 +46,23 @@ variable "container_port" {
   default     = 80
 }
 
+variable "cloudfront_geo_restriction" {
+  description = "CloudFront geo restriction configuration"
+  type = object({
+    restriction_type = string
+    locations        = list(string)
+  })
+  default = {
+    restriction_type = "none"
+    locations        = []
+  }
+  
+  validation {
+    condition     = contains(["none", "whitelist", "blacklist"], var.cloudfront_geo_restriction.restriction_type)
+    error_message = "The restriction_type must be one of: none, whitelist, or blacklist."
+  }
+}
+
 variable "cpu" {
   description = "CPU units for the task (256, 512, 1024, etc.)"
   type        = string
