@@ -63,6 +63,17 @@ variable "cloudfront_geo_restriction" {
   }
 }
 
+variable "cloudfront_waf_web_acl_arn" {
+  description = "ARN of the WAF Web ACL to associate with the CloudFront distribution. Must be a WAFv2 Web ACL with CLOUDFRONT scope."
+  type        = string
+  default     = null
+  
+  validation {
+    condition = var.cloudfront_waf_web_acl_arn == null || can(regex("^arn:aws:wafv2:[^:]*:[^:]*:global/webacl/[^/]+/[a-f0-9-]+$", var.cloudfront_waf_web_acl_arn))
+    error_message = "The WAF Web ACL ARN must be a valid WAFv2 Web ACL ARN with global scope for CloudFront."
+  }
+}
+
 variable "cpu" {
   description = "CPU units for the task (256, 512, 1024, etc.)"
   type        = string

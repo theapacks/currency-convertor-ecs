@@ -27,8 +27,11 @@ resource "aws_cloudfront_vpc_origin" "this" {
 }
 
 resource "aws_cloudfront_distribution" "this" {
-  count = var.enable_load_balancer ? 1 : 0
+  count   = var.enable_load_balancer ? 1 : 0
   enabled = true
+  
+  # Associate WAF Web ACL if provided
+  web_acl_id = var.cloudfront_waf_web_acl_arn
 
   origin {
     domain_name = aws_lb.this[0].dns_name
