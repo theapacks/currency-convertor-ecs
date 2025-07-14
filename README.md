@@ -264,3 +264,20 @@ terraform apply planfile
 ```bash
 terraform destroy -var-file="terraform.tfvars" -var="aws_profile=XXXXXXXXXXX"
 ```
+
+## Future Improvements
+
+-   **Cost Optimization**  
+    Explore Fargate Spot, right-size task resources, and implement AWS Compute Savings Plans to lower monthly spend.
+
+-   **Monitoring Dashboards & Alerts**  
+    Build CloudWatch dashboards for key metrics and set alarms to trigger notifications on anomalies.
+
+-   **Custom Domain**  
+    Integrate Amazon Route 53
+
+-   **Blue/Green or Canary Deployments**  
+    Enhance deployment strategy using AWS CodeDeploy for incremental rollouts and traffic shifting.
+
+-   **Application Performance Monitoring**  
+    Integrate AWS X-Ray to trace requests and pinpoint performance bottlenecks across services.
