@@ -53,8 +53,10 @@ module "vpc" {
   create_flow_log_cloudwatch_iam_role   = true
   flow_log_max_aggregation_interval     = 60
 
-  enable_nat_gateway = true
-  single_nat_gateway = true
+  # Network gateways
+  enable_nat_gateway = true # Neded for ECS tasks to access external APIs
+  single_nat_gateway = true # Cost optimization - single NAT for test environments
+
 
   tags = local.tags
 }
@@ -139,12 +141,12 @@ module "ecs_fargate" {
   # VPC Configuration
   vpc_id         = module.vpc.vpc_id
   subnet_ids     = module.vpc.private_subnets
-  alb_subnet_ids = module.vpc.public_subnets
+  alb_subnet_ids = module.vpc.private_subnets # Internal ALB uses private subnets with VPC origin
 
-  # Since we're using private subnets, disable public IP
+  # Since we're using private subnets for ECS tasks, disable public IP
   enable_public_ip = false
 
-  # Load balancer configuration
+  # Load balancer configuration - internal ALB with CloudFront VPC origin
   enable_load_balancer = true
 
   # Logging configuration
