@@ -5,7 +5,6 @@ resource "random_password" "cloudfront_secret" {
   special = false
 }
 
-
 resource "aws_security_group" "alb" {
   count       = var.enable_load_balancer ? 1 : 0
   name        = "${aws_ecs_cluster.this.name}-alb"
@@ -14,29 +13,33 @@ resource "aws_security_group" "alb" {
   tags = merge(var.tags, {
     Name = "${aws_ecs_cluster.this.name}-alb"
   })
+}
 
-  # Allow HTTP traffic from anywhere (will be protected by custom headers)
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "HTTP traffic (protected by CloudFront headers)"
-  }
+resource "aws_vpc_security_group_ingress_rule" "vpc_origin" {
+  security_group_id = aws_security_group.alb[0].id
+  prefix_list_id    = data.aws_ec2_managed_prefix_list.vpc_origin.id
+  from_port         = 80
+  to_port           = 80
+  ip_protocol       = "tcp"
+  tags = merge(var.tags, {
+    Name = "${aws_ecs_cluster.this.name}-alb-vpc-origin-ingress"
+  })
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+resource "aws_vpc_security_group_egress_rule" "lb" {
+  security_group_id = aws_security_group.alb[0].id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+  tags = merge(var.tags, {
+    Name = "${aws_ecs_cluster.this.name}-alb-egress"
+  })
 }
 
 resource "aws_lb" "this" {
   count              = var.enable_load_balancer ? 1 : 0
   name               = "${var.project_name}-alb"
   load_balancer_type = "application"
-  internal           = false # Internet-facing for CloudFront access
+  internal           = true # Internal ALB - accessible via CloudFront VPC origin
   security_groups    = [aws_security_group.alb[0].id]
   subnets            = length(var.alb_subnet_ids) > 0 ? var.alb_subnet_ids : var.subnet_ids
   tags = merge(var.tags, {
@@ -76,15 +79,15 @@ resource "aws_lb_listener" "this" {
   port              = "80"
   protocol          = "HTTP"
 
-  # Default action blocks direct access
-  default_action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "text/html"
-      message_body = "<h1>Access Denied</h1><p>Direct access not allowed. Please use the CloudFront URL.</p>"
-      status_code  = "403"
-    }
-  }
+   default_action {
+		type = "forward"
+		forward {
+			target_group {
+				arn = aws_lb_target_group.this[0].arn
+			}
+		}
+	}
+
 }
 
 # Rule to allow CloudFront traffic with custom header
@@ -104,64 +107,8 @@ resource "aws_lb_listener_rule" "cloudfront_access" {
       values           = [random_password.cloudfront_secret[0].result]
     }
   }
-}
-
-resource "aws_cloudfront_distribution" "this" {
-  count = var.enable_load_balancer ? 1 : 0
-
-  origin {
-    domain_name = aws_lb.this[0].dns_name
-    origin_id   = "ALB-${var.project_name}"
-
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
-    }
-
-    # Add custom header for ALB authentication
-    custom_header {
-      name  = "X-CloudFront-Secret"
-      value = random_password.cloudfront_secret[0].result
-    }
-  }
-
-  enabled = true
-
-  default_cache_behavior {
-    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "ALB-${var.project_name}"
-    compress               = true
-    viewer_protocol_policy = "redirect-to-https"
-
-    forwarded_values {
-      query_string = true
-      headers      = ["Host", "Authorization"]
-
-      cookies {
-        forward = "none"
-      }
-    }
-
-    # Disable caching for API responses
-    min_ttl     = 0
-    default_ttl = 0
-    max_ttl     = 0
-  }
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    cloudfront_default_certificate = true
-  }
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-cf"
+    Name = "${var.project_name}-cloudfront-access-rule"
   })
 }
